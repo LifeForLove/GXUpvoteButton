@@ -107,7 +107,6 @@
  */
 - (void)zanTouchOutsideAction:(UIButton *)sender
 {
-    NSLog(@"移出事件");
     [self explode];
     _zanLabel.hidden = YES;
     [_timer invalidate];
@@ -125,7 +124,6 @@
  */
 - (void)zanAction:(UIButton *)sender
 {
-    NSLog(@"抬起事件");
     [self explode];
     // 先判断是不是快速点击
     if (touchDowntime <= 0.3) {
