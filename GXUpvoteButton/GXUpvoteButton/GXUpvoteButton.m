@@ -38,14 +38,6 @@
 {
     NSTimer *_timer; //定时器
     NSInteger countNum;//赞的个数
-    CGFloat touchDowntime;//按下的时间的长短
-    NSTimer * _touchDownTimer;//记录按下的时间
-    
-    /*
-     用来判断在选中的状态下:
-     为了用来判断 在长按情况下保持选中
-     */
-    BOOL judgeSelectState;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -70,8 +62,6 @@
 - (void)setup {
     //初始化 赞的个数
     countNum = 1;
-    //初始化 按压点赞按钮的时间
-    touchDowntime = 0;
     
     //展示多少个赞的label
     self.zanLabel = [[UILabel alloc]init];
@@ -80,16 +70,13 @@
     self.zanLabel.hidden = YES;
     
     //添加点击事件
-    //当抬起来时调这个方法
-    [self addTarget:self action:@selector(zanAction:) forControlEvents:UIControlEventTouchUpInside];
-    //当按下去时调这个方法
-    [self addTarget:self action:@selector(zanTouchDown:) forControlEvents:UIControlEventTouchDown];
-    //按钮移除事件
-    [self addTarget:self action:@selector(zanTouchOutsideAction:) forControlEvents:UIControlEventTouchDragOutside];
+    //点一下
+    [self addGestureRecognizer:[[UITapGestureRecognizer alloc]initWithTarget:self action:@selector(pressOnece:)]];
+    //长按
+    [self addGestureRecognizer:[[UILongPressGestureRecognizer alloc]initWithTarget:self action:@selector(longPress:)]];
     
     [self setImage:[UIImage imageNamed:@"feed_like"] forState:UIControlStateNormal];
     [self setImage:[UIImage imageNamed:@"feed_like_press"] forState:UIControlStateSelected];
-    [self setImage:[UIImage imageNamed:@"feed_like_press"] forState:UIControlStateHighlighted];
     
     //设置暂时的layer
     _streamerLayer               = [CAEmitterLayer layer];
@@ -101,92 +88,40 @@
 
 
 /**
- 按钮移出事件
+ 点了一下
 
- @param sender sender
+ @param ges 手势
  */
-- (void)zanTouchOutsideAction:(UIButton *)sender
+- (void)pressOnece:(UIGestureRecognizer *)ges
 {
-    [self explode];
-    _zanLabel.hidden = YES;
-    [_timer invalidate];
-    _timer = nil;
-    [_touchDownTimer invalidate];
-    _touchDownTimer = nil;
-    
-}
-
-
-/**
- 抬起来了
- 
- @param sender sender
- */
-- (void)zanAction:(UIButton *)sender
-{
-    [self explode];
-    // 先判断是不是快速点击
-    if (touchDowntime <= 0.3) {
-        if (sender.selected == YES) {
-            if (judgeSelectState == YES) {
-                //按钮当前是选中状态  并且是快速点击
-                judgeSelectState = NO;
-                sender.selected = NO;
-                countNum = 0;
-                _zanLabel.attributedText = nil;
-            }
-        }
+    UIButton * sender = (UIButton *)ges.view;
+    sender.selected = !sender.selected;
+    [self animation];
+    [self performSelector:@selector(explode) withObject:nil afterDelay:0.1];
+    if (sender.selected == NO) {
+        countNum = 0;
+        [self.imagesArr removeAllObjects];
+        [self.CAEmitterCellArr removeAllObjects];
     }
-    
-    
-    _zanLabel.hidden = YES;
-    [_timer invalidate];
-    _timer = nil;
-    [self.imagesArr removeAllObjects];
-    [self.CAEmitterCellArr removeAllObjects];
-    [_touchDownTimer invalidate];
-    _touchDownTimer = nil;
-    touchDowntime = 0;
 }
 
+
 /**
- 点下去了
- 
- @param sender sender
+ 长按
+
+ @param ges 手势
  */
-- (void)zanTouchDown:(UIButton *)sender
+- (void)longPress:(UIGestureRecognizer *)ges
 {
-    _touchDownTimer = [NSTimer scheduledTimerWithTimeInterval:0.05 target:self selector:@selector(changeTouchDownTime) userInfo:nil repeats:YES];
-    if (!sender.selected) {
-        //当按钮未选中
-        sender.selected = YES;
+    UIButton * sender = (UIButton *)ges.view;
+    sender.selected = YES;
+    if (ges.state == UIGestureRecognizerStateBegan) {
         [self animation];
-    }else
+    }else if (ges.state == UIGestureRecognizerStateEnded)
     {
-        judgeSelectState = YES;
-        //当选中的情况
-        //1 快速点击 则取消选中
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.35 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            //2 停留时间长点 则不变
-            if (touchDowntime > 0.3) {
-                sender.selected = YES;
-                [self animation];
-            }
-        });
+        [self explode];
     }
-    
-    
 }
-
-
-/**
- 判断点击停留的时间
- */
-- (void)changeTouchDownTime
-{
-    touchDowntime += 0.05;
-}
-
 
 /**
  *  开始动画
@@ -240,8 +175,9 @@
     _streamerLayer.beginTime = CACurrentMediaTime();
     for (NSString * imgStr in self.imagesArr) {
         NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
-        [_streamerLayer setValue:@6 forKeyPath:keyPathStr];
+        [_streamerLayer setValue:@5 forKeyPath:keyPathStr];
     }
+    
 }
 
 
@@ -254,6 +190,9 @@
         NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
         [self.streamerLayer setValue:@0 forKeyPath:keyPathStr];
     }
+    _zanLabel.hidden = YES;
+    [_timer invalidate];
+    _timer = nil;
 }
 
 
@@ -403,10 +342,6 @@
     }
     return _CAEmitterCellArr;
 }
-
-
-
-
 
 
 @end
