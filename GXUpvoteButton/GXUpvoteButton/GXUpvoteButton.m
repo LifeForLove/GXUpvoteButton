@@ -99,7 +99,10 @@
     [self animation];
     [self performSelector:@selector(explode) withObject:nil afterDelay:0.1];
     if (sender.selected == NO) {
+        //重置label文字
         countNum = 0;
+        [self changeText];
+        //清空数组
         [self.imagesArr removeAllObjects];
         [self.CAEmitterCellArr removeAllObjects];
     }
@@ -149,7 +152,7 @@
     for (int i = 1; i < 10; i++)
     {
         //78张图片 随机选9张
-        int x = arc4random() % 78;
+        int x = arc4random() % 77 + 1;
         NSString * imageStr = [NSString stringWithFormat:@"emoji_%d",x];
         [self.imagesArr addObject:imageStr];
     }
@@ -163,8 +166,8 @@
     
     
     // 开启计时器 设置点赞次数的label
-    _timer = [NSTimer scheduledTimerWithTimeInterval:0.15 target:self selector:@selector(changeText) userInfo:nil repeats:YES];
     self.zanLabel.hidden = NO;
+    _timer = [NSTimer scheduledTimerWithTimeInterval:0.15 target:self selector:@selector(changeText) userInfo:nil repeats:YES];
     
     CAKeyframeAnimation *animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
     animation.values = @[@0.8, @1.0];
@@ -175,7 +178,7 @@
     _streamerLayer.beginTime = CACurrentMediaTime();
     for (NSString * imgStr in self.imagesArr) {
         NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
-        [_streamerLayer setValue:@5 forKeyPath:keyPathStr];
+        [_streamerLayer setValue:@7 forKeyPath:keyPathStr];
     }
     
 }
