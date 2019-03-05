@@ -10,21 +10,6 @@
 @interface GXUpvoteButton()
 
 /**
- 展示的layer
- */
-@property (strong, nonatomic) CAEmitterLayer *streamerLayer;
-
-/**
- 图片数组
- */
-@property (nonatomic, strong) NSMutableArray *imagesArr;
-
-/**
- cell的数组
- */
-@property (nonatomic, strong) NSMutableArray *CAEmitterCellArr;
-
-/**
  展示多少个赞的label
  */
 @property (nonatomic, strong) UILabel *zanLabel;
@@ -67,7 +52,7 @@
     self.zanLabel = [[UILabel alloc]init];
     [self addSubview:self.zanLabel];
     self.zanLabel.frame = CGRectMake(-50 ,- 100, 200, 40);
-    self.zanLabel.hidden = YES;
+    self.zanLabel.alpha = 0;
     
     //添加点击事件
     //点一下
@@ -77,15 +62,8 @@
     
     [self setImage:[UIImage imageNamed:@"feed_like"] forState:UIControlStateNormal];
     [self setImage:[UIImage imageNamed:@"feed_like_press"] forState:UIControlStateSelected];
-    
-    //设置暂时的layer
-    _streamerLayer               = [CAEmitterLayer layer];
-    _streamerLayer.emitterSize   = CGSizeMake(30, 30);
-    _streamerLayer.masksToBounds = NO;
-    _streamerLayer.renderMode = kCAEmitterLayerAdditive;
-    [self.layer addSublayer:_streamerLayer];
-}
 
+}
 
 /**
  点了一下
@@ -96,18 +74,72 @@
 {
     UIButton * sender = (UIButton *)ges.view;
     sender.selected = !sender.selected;
-    [self animation];
-    [self performSelector:@selector(explode) withObject:nil afterDelay:0.1];
-    if (sender.selected == NO) {
-        //重置label文字
-        countNum = 0;
-        [self changeText];
-        //清空数组
-        [self.imagesArr removeAllObjects];
-        [self.CAEmitterCellArr removeAllObjects];
+    if (sender.selected) {
+        [self tapAnimation];
+        [self hiddenZanLabel];
     }
 }
 
+/**
+ 点按动画
+ */
+- (void)tapAnimation
+{
+    [self handimgAnimation];
+    CAEmitterLayer *streamerLayer = [self createEmitterLayer];
+    NSMutableArray * imgArr = [self createImgArr];
+    NSMutableArray * emitterCellArr = [self createEmitterCellArr:imgArr streamerLayer:streamerLayer];
+    [self endAnimationWithStreamerLayer:streamerLayer imgArr:imgArr emitterCellArr:emitterCellArr];
+    
+    self.zanLabel.attributedText = [self getAttributedString:countNum];
+    self.zanLabel.textAlignment = NSTextAlignmentCenter;
+}
+
+/**
+ 点赞图片动画
+ */
+- (void)handimgAnimation
+{
+    CAKeyframeAnimation *animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
+    if (self.selected) {
+        animation.values = @[@1.5 ,@0.8, @1.0,@1.2,@1.0];
+        animation.duration = 0.5;
+    }else
+    {
+        animation.values = @[@0.8, @1.0];
+        animation.duration = 0.4;
+    }
+    animation.calculationMode = kCAAnimationCubic;
+    [self.imageView.layer addAnimation:animation forKey:@"transform.scale"];
+}
+
+/**
+ 隐藏点赞文字
+ */
+- (void)hiddenZanLabel
+{
+    CABasicAnimation *anima = [CABasicAnimation animationWithKeyPath:@"opacity"];
+    anima.fromValue = @1;
+    anima.toValue = @0;
+    anima.duration = 0.5;
+    anima.removedOnCompletion = NO;
+    anima.fillMode = kCAFillModeForwards;
+    [self.zanLabel.layer addAnimation:anima forKey:@"opacityAniamtion"];
+}
+
+/**
+ 显示点赞文字
+ */
+- (void)showZanLabel
+{
+    CABasicAnimation *anima = [CABasicAnimation animationWithKeyPath:@"opacity"];
+    anima.fromValue = @0;
+    anima.toValue = @1;
+    anima.duration = 0.2;
+    anima.removedOnCompletion = NO;
+    anima.fillMode = kCAFillModeForwards;
+    [self.zanLabel.layer addAnimation:anima forKey:@"opacityAniamtion"];
+}
 
 /**
  长按
@@ -118,87 +150,107 @@
 {
     UIButton * sender = (UIButton *)ges.view;
     sender.selected = YES;
+    
     if (ges.state == UIGestureRecognizerStateBegan) {
-        [self animation];
+        [self showZanLabel];
+        _timer = [NSTimer scheduledTimerWithTimeInterval:0.3 target:self selector:@selector(longPressTimerAction) userInfo:nil repeats:YES];
     }else if (ges.state == UIGestureRecognizerStateEnded)
     {
-        [self explode];
+        [self hiddenZanLabel];
+        [_timer invalidate];
+        _timer = nil;
     }
 }
+
+/**
+ 定时器事件
+ */
+- (void)longPressTimerAction
+{
+    countNum ++;
+    [self tapAnimation];
+}
+
+
+/**
+ 创建喷射layer
+ */
+- (CAEmitterLayer *)createEmitterLayer
+{
+    //设置暂时的layer
+    CAEmitterLayer *streamerLayer = [CAEmitterLayer layer];
+    streamerLayer.position = CGPointMake(self.frame.size.width/2.0, self.frame.size.height/2.0);
+    //发射器的尺寸
+    streamerLayer.emitterSize   = self.layer.bounds.size;
+    streamerLayer.masksToBounds = NO;
+    streamerLayer.renderMode = kCAEmitterLayerAdditive;
+    [self.layer addSublayer:streamerLayer];
+    return streamerLayer;
+}
+
+/**
+ 创建图片数组
+ */
+- (NSMutableArray *)createImgArr
+{
+    NSMutableArray * imgArr = [NSMutableArray array];
+    for (int i = 1; i < 8; i++)
+    {
+        //78张图片 随机选9张
+        int x = arc4random() % 77 + 1;
+        NSString * imageStr = [NSString stringWithFormat:@"emoji_%d",x];
+        [imgArr addObject:imageStr];
+    }
+    return imgArr;
+}
+
+/**
+ 创建粒子单元数组
+ */
+- (NSMutableArray *)createEmitterCellArr:(NSMutableArray *)imgArr streamerLayer:(CAEmitterLayer *)streamerLayer
+{
+    //设置展示的cell
+    NSMutableArray * emitterCellArr = [NSMutableArray array];
+    for (NSString * imageStr in imgArr) {
+        CAEmitterCell * cell = [self emitterCell:[UIImage imageNamed:imageStr] Name:imageStr];
+        [emitterCellArr addObject:cell];
+    }
+    streamerLayer.emitterCells  = emitterCellArr;
+    return emitterCellArr;
+}
+
+/**
+ 结束喷射动画
+ */
+- (void)endAnimationWithStreamerLayer:(CAEmitterLayer *)streamerLayer imgArr:(NSMutableArray *)imgArr emitterCellArr:(NSMutableArray *)emitterCellArr
+{
+    for (NSString * imgStr in imgArr) {
+        NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
+        CABasicAnimation *anima = [CABasicAnimation animationWithKeyPath:keyPathStr];
+        anima.fromValue = [NSNumber numberWithFloat:7];
+        anima.toValue = [NSNumber numberWithFloat:0];
+        anima.duration = 0.5;
+        [streamerLayer addAnimation:anima forKey:nil];
+    }
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [imgArr removeAllObjects];
+        [emitterCellArr removeAllObjects];
+        [streamerLayer removeFromSuperlayer];
+    });
+}
+
 
 /**
  *  开始动画
  */
 - (void)animation {
     CAKeyframeAnimation *animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
-    if (self.selected) {
-        animation.values = @[@1.5 ,@0.8, @1.0,@1.2,@1.0];
-        animation.duration = 0.5;
-        [self startAnimate];
-    }else
-    {
-        animation.values = @[@0.8, @1.0];
-        animation.duration = 0.4;
-    }
+    animation.values = @[@1.5 ,@0.8, @1.0,@1.2,@1.0];
+    animation.duration = 0.5;
     animation.calculationMode = kCAAnimationCubic;
     [self.layer addAnimation:animation forKey:@"transform.scale"];
 }
-
-/**
- *  开始喷射
- */
-- (void)startAnimate {
-    
-    for (int i = 1; i < 10; i++)
-    {
-        //78张图片 随机选9张
-        int x = arc4random() % 77 + 1;
-        NSString * imageStr = [NSString stringWithFormat:@"emoji_%d",x];
-        [self.imagesArr addObject:imageStr];
-    }
-    
-    //设置展示的cell
-    for (NSString * imageStr in self.imagesArr) {
-        CAEmitterCell * cell = [self emitterCell:[UIImage imageNamed:imageStr] Name:imageStr];
-        [self.CAEmitterCellArr addObject:cell];
-    }
-    _streamerLayer.emitterCells  = self.CAEmitterCellArr;
-    
-    
-    // 开启计时器 设置点赞次数的label
-    self.zanLabel.hidden = NO;
-    _timer = [NSTimer scheduledTimerWithTimeInterval:0.15 target:self selector:@selector(changeText) userInfo:nil repeats:YES];
-    
-    CAKeyframeAnimation *animation = [CAKeyframeAnimation animationWithKeyPath:@"transform.scale"];
-    animation.values = @[@0.8, @1.0];
-    animation.duration = 0.4;
-    [self.zanLabel.layer addAnimation:animation forKey:@"transform.scale"];
-    
-    //_streamerLayer开始时间
-    _streamerLayer.beginTime = CACurrentMediaTime();
-    for (NSString * imgStr in self.imagesArr) {
-        NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
-        [_streamerLayer setValue:@7 forKeyPath:keyPathStr];
-    }
-    
-}
-
-
-/**
- *  停止喷射
- */
-- (void)explode {
-    //让chareLayer每秒喷射的个数为0个
-    for (NSString * imgStr in self.imagesArr) {
-        NSString * keyPathStr = [NSString stringWithFormat:@"emitterCells.%@.birthRate",imgStr];
-        [self.streamerLayer setValue:@0 forKeyPath:keyPathStr];
-    }
-    _zanLabel.hidden = YES;
-    [_timer invalidate];
-    _timer = nil;
-}
-
-
 
 /**
  更改点赞个数label的文字
@@ -209,7 +261,6 @@
     self.zanLabel.attributedText = [self getAttributedString:countNum];
     self.zanLabel.textAlignment = NSTextAlignmentCenter;
 }
-
 
 /**
  富文本设置label的图片内容
@@ -300,51 +351,29 @@
 - (CAEmitterCell *)emitterCell:(UIImage *)image Name:(NSString *)name
 {
     CAEmitterCell * smoke = [CAEmitterCell emitterCell];
-    smoke.birthRate = 0;//每秒出现多少个粒子
-    smoke.lifetime = 2;// 粒子的存活时间
+    smoke.birthRate = 0;//每秒创建的发射对象个数
+    smoke.lifetime = 1;// 粒子的存活时间
     smoke.lifetimeRange = 2;
     smoke.scale = 0.35;
     
-    smoke.alphaRange = 1;
-    smoke.alphaSpeed = -1.0;//消失范围
-    smoke.yAcceleration = 450;//可以有下落的效果
+    smoke.alphaRange = 2;
+    smoke.alphaSpeed = -2;
+    smoke.yAcceleration = 1400;//可以有下落的效果
+    smoke.zAcceleration = 300;
     
     CGImageRef image2 = image.CGImage;
     smoke.contents= (__bridge id _Nullable)(image2);
     smoke.name = name; //设置这个 用来展示喷射动画 和隐藏
     
-    smoke.velocity = 450;//速度
-    smoke.velocityRange = 30;// 平均速度
-    smoke.emissionLongitude = 3 * M_PI / 2 ;
+    smoke.velocity = 800;//速度
+    smoke.velocityRange = 500;// 平均速度
     smoke.emissionRange = M_PI_2;//粒子的发散范围
+    smoke.emissionLongitude = 3 * M_PI / 2 ;
     smoke.spin = M_PI * 2; // 粒子的平均旋转速度
     smoke.spinRange = M_PI * 2;// 粒子的旋转速度调整范围
     return smoke;
 }
 
-- (void)layoutSubviews
-{
-    [super layoutSubviews];
-    //设置发射点的位置
-    _streamerLayer.position = CGPointMake(self.frame.size.width/2.0, self.frame.size.height/2.0);
-}
-
-
-- (NSMutableArray *)imagesArr
-{
-    if (_imagesArr == nil) {
-        _imagesArr = [NSMutableArray array];
-    }
-    return _imagesArr;
-}
-
-- (NSMutableArray *)CAEmitterCellArr
-{
-    if (_CAEmitterCellArr == nil) {
-        _CAEmitterCellArr = [NSMutableArray array];
-    }
-    return _CAEmitterCellArr;
-}
 
 
 @end
